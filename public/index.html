@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProTrak - Project Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Dynamic content will be injected here -->
+    </div>
+
+    <!-- Templates -->
+    <template id="tmpl-login">
+        <div class="auth-container glass-effect">
+            <div class="auth-box">
+                <h2>Welcome to ProTrak</h2>
+                <p class="subtitle">Log in to manage your projects</p>
+                <form id="login-form">
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="login-username" required autocomplete="username">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="login-password" required autocomplete="current-password">
+                    </div>
+                    <div class="error-message" id="login-error"></div>
+                    <button type="submit" class="btn-primary">Log In</button>
+                </form>
+                <p class="switch-auth">Don't have an account? <a href="#" id="go-register">Sign up</a></p>
+            </div>
+        </div>
+    </template>
+
+    <template id="tmpl-register">
+        <div class="auth-container glass-effect">
+            <div class="auth-box">
+                <h2>Create an Account</h2>
+                <p class="subtitle">Join ProTrak today</p>
+                <form id="register-form">
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="reg-username" required autocomplete="username">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="reg-password" required autocomplete="new-password">
+                    </div>
+                    <div class="input-group">
+                        <label>Role</label>
+                        <select id="reg-role">
+                            <option value="MEMBER">Member</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                    </div>
+                    <div class="error-message" id="reg-error"></div>
+                    <button type="submit" class="btn-primary">Sign Up</button>
+                </form>
+                <p class="switch-auth">Already have an account? <a href="#" id="go-login">Log in</a></p>
+            </div>
+        </div>
+    </template>
+
+    <template id="tmpl-layout">
+        <div class="dashboard-layout">
+            <aside class="sidebar glass-effect">
+                <div class="brand">
+                    <div class="logo"></div>
+                    <h2>ProTrak</h2>
+                </div>
+                <nav>
+                    <a href="#" class="nav-item active" data-path="dashboard">Dashboard</a>
+                    <a href="#" class="nav-item" data-path="projects">Projects</a>
+                </nav>
+                <div class="user-info">
+                    <div class="avatar"><span id="user-initial">U</span></div>
+                    <div class="user-details">
+                        <span id="user-name">User</span>
+                        <span id="user-role" class="badge">Role</span>
+                    </div>
+                    <button id="logout-btn" class="btn-icon" title="Logout">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </button>
+                </div>
+            </aside>
+            <main class="main-content">
+                <header class="top-header">
+                    <h1 id="page-title">Dashboard</h1>
+                    <div id="header-actions"></div>
+                </header>
+                <div id="page-content" class="content-area">
+                    <!-- Page specific content -->
+                </div>
+            </main>
+        </div>
+    </template>
+
+    <template id="tmpl-dashboard">
+        <div class="stats-grid">
+            <div class="stat-card glass-effect">
+                <h3>Total Projects</h3>
+                <div class="stat-value" id="stat-projects">0</div>
+            </div>
+            <div class="stat-card glass-effect">
+                <h3>My Tasks</h3>
+                <div class="stat-value" id="stat-tasks">0</div>
+            </div>
+            <div class="stat-card glass-effect status-card">
+                <h3>Task Status</h3>
+                <div class="status-bars">
+                    <div class="status-bar" id="bar-todo" title="TODO"></div>
+                    <div class="status-bar" id="bar-inprogress" title="IN_PROGRESS"></div>
+                    <div class="status-bar" id="bar-done" title="DONE"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="dashboard-sections">
+            <div class="section glass-effect">
+                <h2>Overdue Tasks</h2>
+                <div id="overdue-list" class="task-list"></div>
+            </div>
+            <div class="section glass-effect">
+                <h2>My Active Tasks</h2>
+                <div id="active-list" class="task-list"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tmpl-projects">
+        <div class="projects-container">
+            <div class="projects-grid" id="projects-grid">
+                <!-- Projects injected here -->
+            </div>
+        </div>
+    </template>
+
+    <template id="tmpl-project-detail">
+        <div class="project-detail glass-effect">
+            <div class="project-header">
+                <p id="proj-desc" class="text-muted"></p>
+                <div class="team-section">
+                    <h3>Team Members</h3>
+                    <div id="proj-members" class="member-list"></div>
+                </div>
+            </div>
+            <div class="tasks-section">
+                <div class="section-header">
+                    <h2>Tasks</h2>
+                    <button id="add-task-btn" class="btn-secondary btn-small">Add Task</button>
+                </div>
+                <div class="kanban-board">
+                    <div class="kanban-column">
+                        <h3>To Do</h3>
+                        <div id="col-todo" class="kanban-tasks"></div>
+                    </div>
+                    <div class="kanban-column">
+                        <h3>In Progress</h3>
+                        <div id="col-inprogress" class="kanban-tasks"></div>
+                    </div>
+                    <div class="kanban-column">
+                        <h3>Done</h3>
+                        <div id="col-done" class="kanban-tasks"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="modal glass-effect" id="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Modal Title</h2>
+                <button id="modal-close" class="btn-icon">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
