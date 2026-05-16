@@ -28,7 +28,7 @@ A full-stack project management application with role-based access control, task
    ```bash
    npm start
    ```
-4. Open your browser and navigate to `http://localhost:3000`.
+4. Open your browser and navigate to `
 
 *Note: A local SQLite database file will automatically be created in the `data/` folder when the server starts.*
 
