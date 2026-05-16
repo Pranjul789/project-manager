@@ -90,6 +90,51 @@ app.get('/api/users', authenticate, (req, res) => {
     });
 });
 
+// --- Project Member Management Routes ---
+// Add a member to a project (Admin or project creator only)
+app.post('/api/projects/:id/members', authenticate, (req, res) => {
+    const projectId = req.params.id;
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+
+    db.get(`SELECT * FROM projects WHERE id = ?`, [projectId], (err, project) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+        if (req.user.role !== 'ADMIN' && project.created_by !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden: Only admin or project creator can add members' });
+        }
+
+        db.run(`INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?, ?)`,
+            [projectId, user_id], function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                if (this.changes === 0) return res.status(400).json({ error: 'User is already a member' });
+                res.json({ message: 'Member added successfully' });
+            }
+        );
+    });
+});
+
+// Remove a member from a project (Admin or project creator only)
+app.delete('/api/projects/:id/members/:userId', authenticate, (req, res) => {
+    const { id: projectId, userId } = req.params;
+
+    db.get(`SELECT * FROM projects WHERE id = ?`, [projectId], (err, project) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+        if (req.user.role !== 'ADMIN' && project.created_by !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden: Only admin or project creator can remove members' });
+        }
+
+        db.run(`DELETE FROM project_members WHERE project_id = ? AND user_id = ?`,
+            [projectId, userId], function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                if (this.changes === 0) return res.status(404).json({ error: 'Member not found in project' });
+                res.json({ message: 'Member removed successfully' });
+            }
+        );
+    });
+});
+
 // --- Project Routes ---
 app.get('/api/projects', authenticate, (req, res) => {
     let sql = '';

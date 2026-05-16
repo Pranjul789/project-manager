@@ -307,3 +307,64 @@ nav { flex: 1; padding: 1.5rem 0; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .form-grid .input-group { margin-bottom: 0; }
 .full-width { grid-column: 1 / -1; }
+
+/* Small button override */
+.btn-small { width: auto; padding: 0.4rem 0.85rem; font-size: 0.8rem; border-radius: 6px; }
+
+/* Danger button */
+.btn-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+
+/* Member chip with remove button */
+.member-chip {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: border-color 0.2s;
+}
+.member-chip:hover { border-color: rgba(99, 102, 241, 0.5); }
+.member-remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, color 0.2s;
+}
+.member-remove-btn:hover { opacity: 1; color: var(--danger); }
+
+/* Manage members modal rows */
+.member-add-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 0.5rem;
+    transition: background 0.2s;
+}
+.member-add-row:hover { background: rgba(255, 255, 255, 0.04); }
+.member-add-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Team section header with button */
+.team-section .section-header {
+    margin-bottom: 0.75rem;
+}
+.team-section .section-header h3 { font-size: 1rem; font-weight: 600; }

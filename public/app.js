@@ -33,7 +33,7 @@ async function init() {
 }
 
 async function fetchUsers() {
-    if (currentUser && currentUser.role === 'ADMIN') {
+    if (currentUser) {
         const res = await fetch('/api/users');
         if (res.ok) {
             usersList = await res.json();
@@ -268,20 +268,22 @@ async function renderProjectDetail(id) {
         document.getElementById('page-title').textContent = p.name;
         document.getElementById('proj-desc').textContent = p.description || 'No description provided.';
 
+        const isOwner = currentUser.role === 'ADMIN' || p.created_by === currentUser.id;
+
+        // --- Render members section with manage button for owner ---
         const membersDiv = document.getElementById('proj-members');
-        if (p.members.length === 0) {
-            membersDiv.innerHTML = '<p class="text-muted">No members assigned.</p>';
+        renderMembersList(membersDiv, p.members, p.id, isOwner);
+
+        // Show Manage Members button for owner
+        const manageBtn = document.getElementById('manage-members-btn');
+        if (isOwner) {
+            manageBtn.style.display = 'inline-flex';
+            manageBtn.onclick = () => openManageMembersModal(p);
         } else {
-            p.members.forEach(m => {
-                const chip = document.createElement('div');
-                chip.className = 'member-chip';
-                chip.innerHTML = `<span>${m.username}</span> <span class="badge">${m.role}</span>`;
-                membersDiv.appendChild(chip);
-            });
+            manageBtn.style.display = 'none';
         }
 
-        const canAddTask = currentUser.role === 'ADMIN' || p.created_by === currentUser.id ||
-            p.members.some(m => m.id === currentUser.id);
+        const canAddTask = isOwner || p.members.some(m => m.id === currentUser.id);
         const addBtn = document.getElementById('add-task-btn');
         if (canAddTask) {
             addBtn.dataset.pid = p.id;
@@ -369,56 +371,48 @@ function openModal(title, contentHtml) {
 
 function closeModal() {
     modalOverlay.classList.add('hidden');
+    if (window._pendingProjectRefresh) {
+        const pid = window._pendingProjectRefresh;
+        window._pendingProjectRefresh = null;
+        navigate('project-detail', { id: pid });
+    }
 }
 
 function openNewProjectModal() {
-    const userOptions = usersList.map(u => `
-        <div>
-            <label style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" name="members" value="${u.id}" style="width:auto;">
-                ${u.username} (${u.role})
-            </label>
-        </div>
-    `).join('');
-
     const html = `
         <form id="new-proj-form">
             <div class="input-group">
                 <label>Project Name</label>
-                <input type="text" id="np-name" required>
+                <input type="text" id="np-name" required placeholder="e.g. Website Redesign">
             </div>
             <div class="input-group">
                 <label>Description</label>
-                <textarea id="np-desc" rows="3"></textarea>
+                <textarea id="np-desc" rows="3" placeholder="What is this project about?"></textarea>
             </div>
-            <div class="input-group">
-                <label>Assign Members</label>
-                <div style="max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
-                    ${userOptions || '<p class="text-muted" style="margin:0; font-size:0.85rem;">No other users yet.</p>'}
-                </div>
-            </div>
-            <button type="submit" class="btn-primary">Create Project</button>
+            <p class="text-muted" style="font-size:0.85rem; margin: 0.25rem 0 1rem;">💡 You can add team members after the project is created.</p>
+            <button type="submit" class="btn-primary">Create Project &amp; Manage Members →</button>
         </form>
     `;
     openModal('New Project', html);
 
     document.getElementById('new-proj-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const name = document.getElementById('np-name').value;
-        const desc = document.getElementById('np-desc').value;
-        const members = Array.from(document.querySelectorAll('input[name="members"]:checked')).map(cb => parseInt(cb.value));
+        const name = document.getElementById('np-name').value.trim();
+        const desc = document.getElementById('np-desc').value.trim();
+        if (!name) return;
 
         try {
             const res = await fetch('/api/projects', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description: desc, member_ids: members })
+                body: JSON.stringify({ name, description: desc, member_ids: [] })
             });
+            const data = await res.json();
             if (res.ok) {
                 closeModal();
-                navigate('projects');
+                // Navigate directly to the new project so user can add members
+                navigate('project-detail', { id: data.id });
             } else {
-                const data = await res.json();
                 alert(data.error || 'Failed to create project');
             }
         } catch (e) {
@@ -426,6 +420,191 @@ function openNewProjectModal() {
         }
     });
 }
+
+// --- Member Management ---
+function renderMembersList(container, members, projectId, isOwner) {
+    container.innerHTML = '';
+    if (members.length === 0) {
+        container.innerHTML = '<p class="text-muted">No members assigned yet.</p>';
+        return;
+    }
+    members.forEach(m => {
+        const chip = document.createElement('div');
+        chip.className = 'member-chip';
+        chip.innerHTML = `
+            <span>${m.username}</span>
+            <span class="badge">${m.role}</span>
+            ${isOwner ? `<button class="member-remove-btn" title="Remove member" onclick="removeMember(${projectId}, ${m.id}, this)">×</button>` : ''}
+        `;
+        container.appendChild(chip);
+    });
+}
+
+window.removeMember = async (projectId, userId, btn) => {
+    btn.disabled = true;
+    try {
+        const res = await fetch(`/api/projects/${projectId}/members/${userId}`, { method: 'DELETE' });
+        if (res.ok) {
+            navigate('project-detail', { id: projectId });
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Failed to remove member');
+            btn.disabled = false;
+        }
+    } catch (e) {
+        console.error('Error removing member', e);
+        btn.disabled = false;
+    }
+};
+
+function openManageMembersModal(project) {
+    const currentMemberIds = new Set(project.members.map(m => m.id));
+    // Show all users not already in the project
+    const available = usersList.filter(u => !currentMemberIds.has(u.id));
+
+    const availableHtml = available.length > 0
+        ? available.map(u => `
+            <div class="member-add-row" id="add-row-${u.id}">
+                <div class="member-add-info">
+                    <div class="avatar" style="width:32px;height:32px;font-size:0.85rem;">${u.username.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <div style="font-weight:500;">${u.username}</div>
+                        <div style="font-size:0.78rem; opacity:0.6;">${u.role}</div>
+                    </div>
+                </div>
+                <button class="btn-secondary btn-small" onclick="addMember(${project.id}, ${u.id}, this)">+ Add</button>
+            </div>
+        `).join('')
+        : '<p class="text-muted" style="text-align:center; padding: 1rem 0;">All registered users are already members.</p>';
+
+    const currentHtml = project.members.length > 0
+        ? project.members.map(m => `
+            <div class="member-add-row" id="cur-row-${m.id}">
+                <div class="member-add-info">
+                    <div class="avatar" style="width:32px;height:32px;font-size:0.85rem;">${m.username.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <div style="font-weight:500;">${m.username}</div>
+                        <div style="font-size:0.78rem; opacity:0.6;">${m.role}</div>
+                    </div>
+                </div>
+                <button class="btn-danger btn-small" onclick="removeMemberModal(${project.id}, ${m.id}, this)">Remove</button>
+            </div>
+        `).join('')
+        : '<p class="text-muted" style="padding: 0.5rem 0; font-size:0.9rem;">No members yet.</p>';
+
+    const html = `
+        <div style="display:flex; flex-direction:column; gap:1.5rem;">
+            <div>
+                <h3 style="font-size:0.9rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; margin-bottom:0.75rem;">Current Members</h3>
+                <div id="cur-members-list">${currentHtml}</div>
+            </div>
+            <div>
+                <h3 style="font-size:0.9rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; margin-bottom:0.75rem;">Add Members</h3>
+                <div id="avail-members-list" style="max-height:200px; overflow-y:auto;">${availableHtml}</div>
+            </div>
+        </div>
+    `;
+    openModal(`Manage Members — ${project.name}`, html);
+}
+
+window.addMember = async (projectId, userId, btn) => {
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+    try {
+        const res = await fetch(`/api/projects/${projectId}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId })
+        });
+        if (res.ok) {
+            const user = usersList.find(u => u.id === userId);
+            // Remove from available list
+            const addRow = document.getElementById(`add-row-${userId}`);
+            if (addRow) addRow.remove();
+            // Check if avail list is now empty
+            const availList = document.getElementById('avail-members-list');
+            if (availList && availList.children.length === 0) {
+                availList.innerHTML = '<p class="text-muted" style="text-align:center; padding: 1rem 0;">All registered users are already members.</p>';
+            }
+            // Add to current members list
+            const curList = document.getElementById('cur-members-list');
+            if (curList) {
+                const noMemberMsg = curList.querySelector('p');
+                if (noMemberMsg) noMemberMsg.remove();
+                curList.insertAdjacentHTML('beforeend', `
+                    <div class="member-add-row" id="cur-row-${userId}">
+                        <div class="member-add-info">
+                            <div class="avatar" style="width:32px;height:32px;font-size:0.85rem;">${user ? user.username.charAt(0).toUpperCase() : '?'}</div>
+                            <div>
+                                <div style="font-weight:500;">${user ? user.username : userId}</div>
+                                <div style="font-size:0.78rem; opacity:0.6;">${user ? user.role : ''}</div>
+                            </div>
+                        </div>
+                        <button class="btn-danger btn-small" onclick="removeMemberModal(${projectId}, ${userId}, this)">Remove</button>
+                    </div>
+                `);
+            }
+            // Mark that the project page needs refresh when modal closes
+            window._pendingProjectRefresh = projectId;
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Failed to add member');
+            btn.disabled = false;
+            btn.textContent = '+ Add';
+        }
+    } catch (e) {
+        console.error('Error adding member', e);
+        btn.disabled = false;
+        btn.textContent = '+ Add';
+    }
+};
+
+window.removeMemberModal = async (projectId, userId, btn) => {
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+        const res = await fetch(`/api/projects/${projectId}/members/${userId}`, { method: 'DELETE' });
+        if (res.ok) {
+            const user = usersList.find(u => u.id === userId);
+            // Remove from current list
+            const row = document.getElementById(`cur-row-${userId}`);
+            if (row) row.remove();
+            // Check if current list is now empty
+            const curList = document.getElementById('cur-members-list');
+            if (curList && curList.children.length === 0) {
+                curList.innerHTML = '<p class="text-muted" style="padding: 0.5rem 0; font-size:0.9rem;">No members yet.</p>';
+            }
+            // Add back to available list
+            const availList = document.getElementById('avail-members-list');
+            if (availList) {
+                const noneMsg = availList.querySelector('p');
+                if (noneMsg) noneMsg.remove();
+                availList.insertAdjacentHTML('beforeend', `
+                    <div class="member-add-row" id="add-row-${userId}">
+                        <div class="member-add-info">
+                            <div class="avatar" style="width:32px;height:32px;font-size:0.85rem;">${user ? user.username.charAt(0).toUpperCase() : '?'}</div>
+                            <div>
+                                <div style="font-weight:500;">${user ? user.username : userId}</div>
+                                <div style="font-size:0.78rem; opacity:0.6;">${user ? user.role : ''}</div>
+                            </div>
+                        </div>
+                        <button class="btn-secondary btn-small" onclick="addMember(${projectId}, ${userId}, this)">+ Add</button>
+                    </div>
+                `);
+            }
+            window._pendingProjectRefresh = projectId;
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Failed to remove member');
+            btn.disabled = false;
+            btn.textContent = 'Remove';
+        }
+    } catch (e) {
+        console.error('Error removing member', e);
+        btn.disabled = false;
+        btn.textContent = 'Remove';
+    }
+};
 
 function openNewTaskModal(project) {
     // Members of the project can be assigned (include current admin user too)
