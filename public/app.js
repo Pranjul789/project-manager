@@ -302,7 +302,7 @@ async function renderProjectDetail(id) {
         }
 
         p.tasks.forEach(t => {
-            const taskEl = createTaskEl(t, true);
+            const taskEl = createTaskEl(t, true, p);
             if (t.status === 'TODO') colTodo.appendChild(taskEl);
             else if (t.status === 'IN_PROGRESS') colInprogress.appendChild(taskEl);
             else colDone.appendChild(taskEl);
@@ -313,7 +313,7 @@ async function renderProjectDetail(id) {
     }
 }
 
-function createTaskEl(t, showStatusDropdown = false) {
+function createTaskEl(t, showStatusDropdown = false, projectForAssignment = null) {
     const el = document.createElement('div');
     el.className = 'task-item glass-effect';
     let statusSelectHtml = `<span class="task-status status-${t.status}">${t.status.replace('_', ' ')}</span>`;
@@ -328,13 +328,42 @@ function createTaskEl(t, showStatusDropdown = false) {
         `;
     }
 
+    let assignmentHtml = `<span style="margin-left: 8px;">${t.assigned_to_name ? '👤 ' + t.assigned_to_name : ''}</span>`;
+    
+    // If project is provided, we are on the project detail page and can show an assignment dropdown
+    if (projectForAssignment) {
+        const isOwnerOrAdmin = currentUser.role === 'ADMIN' || projectForAssignment.created_by === currentUser.id;
+        const isMember = projectForAssignment.members.some(m => m.id === currentUser.id);
+        
+        if (isOwnerOrAdmin || isMember) {
+            const allAssignable = projectForAssignment.members.slice();
+            // Add current user if not in members list (e.g. admin creator)
+            if (currentUser && !allAssignable.find(m => m.id === currentUser.id)) {
+                allAssignable.unshift(currentUser);
+            }
+            
+            const memberOptions = allAssignable.map(m => 
+                `<option value="${m.id}" ${t.assigned_to === m.id ? 'selected' : ''}>${m.username}</option>`
+            ).join('');
+            
+            assignmentHtml = `
+                <span style="margin-left: 8px;">👤 
+                    <select class="assign-select" onchange="updateTaskAssignment(${t.id}, this.value)" style="padding: 2px; height: auto; border: none; background: transparent; color: inherit; outline: none; cursor: pointer; font-size: inherit;">
+                        <option value="">Unassigned</option>
+                        ${memberOptions}
+                    </select>
+                </span>
+            `;
+        }
+    }
+
     el.innerHTML = `
         <div class="task-title">${t.title}</div>
         <div style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.5rem;">${t.project_name ? 'Project: ' + t.project_name : (t.description || '')}</div>
         <div class="task-meta">
             <div>
                 ${statusSelectHtml}
-                <span style="margin-left: 8px;">${t.assigned_to_name ? '👤 ' + t.assigned_to_name : ''}</span>
+                ${assignmentHtml}
             </div>
             ${t.due_date ? '<span>📅 ' + new Date(t.due_date).toLocaleDateString() + '</span>' : ''}
         </div>
@@ -359,6 +388,25 @@ window.updateTaskStatus = async (id, status) => {
         }
     } catch (e) {
         console.error('Error updating task status', e);
+    }
+};
+
+window.updateTaskAssignment = async (id, userId) => {
+    try {
+        const res = await fetch(`/api/tasks/${id}/assign`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assigned_to: userId ? parseInt(userId) : null })
+        });
+        if (res.ok) {
+            if (currentPath === 'dashboard') {
+                navigate('dashboard');
+            } else if (currentPath === 'project-detail' && currentProjectId) {
+                navigate('project-detail', { id: currentProjectId });
+            }
+        }
+    } catch (e) {
+        console.error('Error updating task assignment', e);
     }
 };
 

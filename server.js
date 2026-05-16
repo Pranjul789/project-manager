@@ -254,6 +254,17 @@ app.put('/api/tasks/:id/status', authenticate, (req, res) => {
     });
 });
 
+app.put('/api/tasks/:id/assign', authenticate, (req, res) => {
+    const taskId = req.params.id;
+    const { assigned_to } = req.body;
+
+    db.run(`UPDATE tasks SET assigned_to = ? WHERE id = ?`, [assigned_to || null, taskId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: 'Task not found' });
+        res.json({ message: 'Task assignment updated' });
+    });
+});
+
 // Dashboard Route
 app.get('/api/dashboard', authenticate, (req, res) => {
     const stats = {
