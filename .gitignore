@@ -1,0 +1,24 @@
+# Dependencies - NEVER commit these (contains platform-specific native binaries)
+node_modules/
+
+# SQLite database files (runtime data, not source code)
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary scripts
+fix_appjs.py
